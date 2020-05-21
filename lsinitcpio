@@ -88,6 +88,10 @@ detect_filetype() {
             echo 'xz'
             return
             ;;
+        $'(\xb5/\xfd'??)
+            echo 'zstd'
+            return
+            ;;
     esac
 
     read -rd '' bytes < <(hexdump -n 4 -e '"%c"' "$1")
