@@ -77,63 +77,58 @@ size_to_human() {
 detect_filetype() {
     local bytes
 
-    read -rd '' bytes < <(hexdump -n 6 -e '"%c"' "$1")
-    case $bytes in
-        '070701')
+    case $(hexdump -v -n 6 -e '/1 "%02x"' "$1") in
+        303730373031)
             # no compression
             echo
             return
             ;;
-        $'\xfd7zXZ')
+        fd377a585a00)
+            # XZ compression
             echo 'xz'
             return
             ;;
-        $'(\xb5/\xfd'??)
+        28b52ffd*)
+            # Zstandard compression
             echo 'zstd'
             return
             ;;
-    esac
-
-    read -rd '' bytes < <(hexdump -n 4 -e '"%c"' "$1")
-    if [[ $bytes = $'\x89LZO' ]]; then
-        echo 'lzop'
-        return
-    fi
-
-    read -rd '' bytes < <(hexdump -n 2 -e '"%x"' "$1")
-    if [[ $bytes = '8b1f' ]]; then
-        echo 'gzip'
-        return
-    fi
-
-    read -rd '' bytes < <(hexdump -n 4 -e '"%x"' "$1")
-    case $bytes in
-        184d2204)
+        894c5a4f*)
+            # LZO compression
+            echo 'lzop'
+            return
+            ;;
+        1f8b*)
+            # GZIP compression
+            echo 'gzip'
+            return
+            ;;
+        04224d18*)
+            # LZ4 compression
             error 'Newer lz4 stream format detected! This may not boot!'
             echo 'lz4'
             return
             ;;
-        184c2102)
+        02214c18*)
+            # LZ4 compression (legacy)
             echo 'lz4 -l'
             return
             ;;
+        425a68*)
+            # bzip2 compression
+            echo 'bzip2'
+            return
+            ;;
+        # lzma detection sucks and there's really no good way to
+        # do it without reading large portions of the stream. this
+        # check is good enough for GNU tar, apparently, so it's good
+        # enough for me.
+        5d0000*)
+            # LZMA compression
+            echo 'lzma'
+            return
+            ;;
     esac
-
-    read -rd '' bytes < <(hexdump -n 3 -e '"%c"' "$1")
-    if [[ $bytes == 'BZh' ]]; then
-        echo 'bzip2'
-        return
-    fi
-
-    # lzma detection sucks and there's really no good way to
-    # do it without reading large portions of the stream. this
-    # check is good enough for GNU tar, apparently, so it's good
-    # enough for me.
-    read -rd '' bytes < <(hexdump -n 3 -e '"%x"' "$1")
-    if [[ $bytes = '5d' ]]; then
-        echo 'lzma'
-        return
-    fi
 
     # still nothing? hrmm, maybe the user goofed and it's a kernel
     if kver "$1" >/dev/null; then
